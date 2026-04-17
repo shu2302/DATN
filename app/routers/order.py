@@ -26,7 +26,6 @@ def get_current_user(token: str = Header(...)):
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-# CREATE ORDER
 @router.post("/")
 def create_order(
     order: OrderCreate,
@@ -35,11 +34,13 @@ def create_order(
 ):
     total_price = 0
 
+    # tạo order trước
     new_order = Order(total_price=0)
     db.add(new_order)
     db.commit()
     db.refresh(new_order)
 
+    # xử lý từng item
     for item in order.items:
         product = db.query(Product).filter(Product.id == item.product_id).first()
 
@@ -55,6 +56,7 @@ def create_order(
         # trừ tồn kho
         product.quantity -= item.quantity
 
+        # tạo order item
         order_item = OrderItem(
             order_id=new_order.id,
             product_id=item.product_id,
@@ -63,7 +65,7 @@ def create_order(
 
         db.add(order_item)
 
-    # update tổng tiền
+    # cập nhật tổng tiền
     new_order.total_price = total_price
 
     db.commit()
