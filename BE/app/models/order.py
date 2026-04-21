@@ -8,6 +8,7 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     total_price = Column(Float)
+    user_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
 
     items = relationship("OrderItem", back_populates="order")

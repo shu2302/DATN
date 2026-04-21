@@ -6,6 +6,8 @@ from app.models.product import Product
 from app.schemas.order import OrderCreate
 from jose import jwt
 from app.core.security import SECRET_KEY, ALGORITHM
+from sqlalchemy import func
+
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -146,35 +148,32 @@ def dashboard(
     }
 
 # ========top product =======
+
 @router.get("/top-products")
 def top_products(
     db: Session = Depends(get_db),
     user: str = Depends(get_current_user)
 ):
-    items = db.query(OrderItem).all()
+    result = (
+        db.query(
+            Product.id,
+            Product.name,
+            func.sum(OrderItem.quantity).label("total_sold")
+        )
+        .join(OrderItem, Product.id == OrderItem.product_id)
+        .group_by(Product.id)
+        .order_by(func.sum(OrderItem.quantity).desc())
+        .all()
+    )
 
-    result = {}
-
-    for item in items:
-        if item.product_id not in result:
-            result[item.product_id] = 0
-        result[item.product_id] += item.quantity
-
-    # sort giảm dần
-    sorted_result = sorted(result.items(), key=lambda x: x[1], reverse=True)
-
-    output = []
-
-    for pid, qty in sorted_result:
-        product = db.query(Product).filter(Product.id == pid).first()
-
-        output.append({
-            "product_id": pid,
-            "name": product.name if product else "Unknown",
-            "total_sold": qty
-        })
-
-    return output
+    return [
+        {
+            "product_id": r.id,
+            "name": r.name,
+            "total_sold": r.total_sold
+        }
+        for r in result
+    ]
 
 # =========oders per day ============
 @router.get("/orders-per-day")
