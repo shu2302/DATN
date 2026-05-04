@@ -1,6 +1,24 @@
-fastapi
-uvicorn
-sqlalchemy
-python-jose[cryptography]
-passlib[bcrypt]
-bcrypt<4.0
+# Core
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+sqlalchemy==2.0.35
+pydantic==2.9.2
+
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# HTTP client (Ollama)
+httpx==0.27.2
+
+# Form data
+python-multipart==0.0.12
+
+# ── Optional: cài thêm để bật tính năng nâng cao ──────────────
+# Cache (cài Redis server riêng, rồi: pip install redis)
+# redis>=5.0.0
+
+# Semantic search / RAG (nặng ~1GB, chỉ cài khi cần)
+# faiss-cpu>=1.7.4
+# sentence-transformers>=2.7.0
+# numpy>=1.26.0

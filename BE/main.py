@@ -1,22 +1,33 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from app.database.database import engine, Base
-
-from app.routers import product as product_router
-from app.routers import  user as user_router
-from app.routers import auth
-from app.routers import order as order_router
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.models import product, user, order
+from app.database.database import Base, engine, SessionLocal
+from app.models import User, Category, Product, Order, OrderItem, ActivityLog, StockImport
+from app.routers import auth, product, order, user, category, chatbot, notification, stock_import
 
-app = FastAPI()
 
-Base.metadata.create_all(bind=engine)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
 
-app.include_router(product_router.router)
-app.include_router(auth.router)
-app.include_router(user_router.router)
-app.include_router(order_router.router)
+    # Build RAG semantic index (graceful: skip nếu FAISS chưa cài)
+    try:
+        db = SessionLocal()
+        product_names  = [p.name for p in db.query(Product).all()]
+        category_names = [c.name for c in db.query(Category).all()]
+        db.close()
+        from app.chatbot.rag import rebuild_index
+        rebuild_index(product_names, category_names)
+    except Exception as e:
+        print(f"⚠️  RAG index skipped: {e}")
+
+    yield
+    # ── Shutdown (nothing to clean up) ──────────────────────
+
+
+app = FastAPI(title="Supermarket AI", version="3.0.0", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,3 +35,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth.router)
+app.include_router(product.router)
+app.include_router(order.router)
+app.include_router(user.router)
+app.include_router(category.router)
+app.include_router(chatbot.router)
+app.include_router(notification.router)
+app.include_router(stock_import.router)
+
+
+@app.get("/")
+def root():
+    return {"message": "🛒 Supermarket AI API v3.0 — production-ready"}

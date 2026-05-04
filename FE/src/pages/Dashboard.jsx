@@ -1,144 +1,89 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  Title,
-  Tooltip,
-  Legend,
-} from "chart.js";
-import { Bar, Line } from "react-chartjs-2";
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement,
+  PointElement, ArcElement, Title, Tooltip, Legend } from "chart.js";
+import { Bar, Line, Doughnut } from "react-chartjs-2";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  Title,
-  Tooltip,
-  Legend
-);
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement,
+  PointElement, ArcElement, Title, Tooltip, Legend);
+
+const opts = { responsive: true, plugins: { legend: { display: false } },
+  scales: { x: { grid: { display: false } }, y: { grid: { color: "#f1f5f9" } } } };
+const fmt = n => new Intl.NumberFormat("vi-VN").format(Math.round(n)) + "đ";
 
 export default function Dashboard() {
-  const [revenue, setRevenue] = useState({});
-  const [ordersPerDay, setOrdersPerDay] = useState({});
-  const [topProducts, setTopProducts] = useState([]);
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalOrders, setTotalOrders] = useState(0);
-  const [totalProducts, setTotalProducts] = useState(0);
+  const [dash, setDash] = useState(null);
+  const [top, setTop] = useState([]);
+  const [revCat, setRevCat] = useState([]);
 
   useEffect(() => {
-    fetchData();
+    Promise.all([
+      API.get("/orders/dashboard"),
+      API.get("/orders/top-products"),
+      API.get("/orders/revenue-by-category"),
+    ]).then(([r1, r2, r3]) => { setDash(r1.data); setTop(r2.data); setRevCat(r3.data); });
   }, []);
 
-  const fetchData = async () => {
-    const res1 = await API.get("/orders/dashboard");
-    const res2 = await API.get("/orders/top-products");
-    const res3 = await API.get("/products");
+  if (!dash) return <div className="loading">⏳ Đang tải dữ liệu...</div>;
 
-    setRevenue(res1.data.revenue);
-    setOrdersPerDay(res1.data.orders_per_day);
-    setTopProducts(res2.data);
+  const days = Object.keys(dash.revenue || {}).sort().slice(-14);
+  const COLORS = ["#2563eb","#16a34a","#d97706","#dc2626","#0891b2","#7c3aed","#db2777"];
 
-    // tính tổng
-    const totalRev = Object.values(res1.data.revenue).reduce(
-      (a, b) => a + b,
-      0
-    );
-    const totalOrd = Object.values(res1.data.orders_per_day).reduce(
-      (a, b) => a + b,
-      0
-    );
-
-    setTotalRevenue(totalRev);
-    setTotalOrders(totalOrd);
-    setTotalProducts(res3.data.length);
-  };
-
-  // ===== Revenue chart =====
-  const revenueData = {
-    labels: Object.keys(revenue),
-    datasets: [
-      {
-        label: "Revenue",
-        data: Object.values(revenue),
-      },
-    ],
-  };
-
-  // ===== Orders per day =====
-  const ordersData = {
-    labels: Object.keys(ordersPerDay),
-    datasets: [
-      {
-        label: "Orders",
-        data: Object.values(ordersPerDay),
-      },
-    ],
-  };
-
-  // ===== Top products =====
-  const topData = {
-    labels: topProducts.map((p) => p.name),
-    datasets: [
-      {
-        label: "Top Products",
-        data: topProducts.map((p) => p.total_sold),
-      },
-    ],
-  };
+  const revenueData = { labels: days, datasets: [{ data: days.map(d => dash.revenue[d] || 0),
+    borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,.1)", fill: true, tension: 0.4, pointRadius: 3 }] };
+  const ordersData = { labels: days, datasets: [{ data: days.map(d => dash.orders_per_day[d] || 0),
+    backgroundColor: "#16a34a", borderRadius: 6 }] };
+  const topData = { labels: top.map(p => p.name),
+    datasets: [{ data: top.map(p => p.total_sold), backgroundColor: COLORS }] };
+  const catData = { labels: revCat.map(r => r.category),
+    datasets: [{ data: revCat.map(r => r.revenue), backgroundColor: "#2563eb", borderRadius: 6 }] };
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Dashboard</h2>
-
-      {/* ===== CARDS ===== */}
-      <div style={{ display: "flex", gap: 20, marginBottom: 20 }}>
-        <div style={cardStyle}>
-          <h3>Total Revenue</h3>
-          <p>{totalRevenue}</p>
+    <div>
+      <div className="page-header">
+        <h2>📊 Dashboard</h2>
+        <p>Tổng quan hoạt động kinh doanh siêu thị</p>
+      </div>
+      <div className="stat-grid">
+        <div className="stat-card blue">
+          <div className="stat-label">Tổng doanh thu</div>
+          <div className="stat-value">{fmt(dash.total_revenue || 0)}</div>
+          <div className="stat-sub">Tất cả đơn hàng</div>
         </div>
-
-        <div style={cardStyle}>
-          <h3>Total Orders</h3>
-          <p>{totalOrders}</p>
+        <div className="stat-card green">
+          <div className="stat-label">Tổng đơn hàng</div>
+          <div className="stat-value">{dash.total_orders || 0}</div>
+          <div className="stat-sub">Đã hoàn thành</div>
         </div>
-
-        <div style={cardStyle}>
-          <h3>Total Products</h3>
-          <p>{totalProducts}</p>
+        <div className="stat-card orange">
+          <div className="stat-label">Bán chạy nhất</div>
+          <div className="stat-value" style={{ fontSize: 18, marginTop: 6 }}>{top[0]?.name?.slice(0,14) || "—"}</div>
+          <div className="stat-sub">{top[0] ? `${top[0].total_sold} sản phẩm đã bán` : "Chưa có dữ liệu"}</div>
+        </div>
+        <div className="stat-card red">
+          <div className="stat-label">Danh mục</div>
+          <div className="stat-value">{revCat.length}</div>
+          <div className="stat-sub">Nhóm sản phẩm</div>
         </div>
       </div>
-
-      {/* ===== CHARTS ===== */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        <div>
-          <h3>Revenue</h3>
-          <Line data={revenueData} />
+      <div className="charts-grid">
+        <div className="chart-card">
+          <div className="chart-title">📈 Doanh thu 14 ngày gần nhất</div>
+          <Line data={revenueData} options={opts} />
         </div>
-
-        <div>
-          <h3>Orders per Day</h3>
-          <Line data={ordersData} />
+        <div className="chart-card">
+          <div className="chart-title">📦 Số đơn hàng theo ngày</div>
+          <Bar data={ordersData} options={opts} />
         </div>
-
-        <div>
-          <h3>Top Products</h3>
-          <Bar data={topData} />
+        <div className="chart-card">
+          <div className="chart-title">🏆 Top sản phẩm bán chạy</div>
+          {top.length ? <Doughnut data={topData} options={{ ...opts, plugins: { legend: { position: "right", labels: { font: { size: 11 } } } } }} /> : <div className="empty">Chưa có dữ liệu</div>}
+        </div>
+        <div className="chart-card">
+          <div className="chart-title">🗂️ Doanh thu theo danh mục</div>
+          {revCat.length ? <Bar data={catData} options={opts} /> : <div className="empty">Chưa có dữ liệu</div>}
         </div>
       </div>
     </div>
   );
 }
-
-const cardStyle = {
-  border: "1px solid #ccc",
-  padding: 20,
-  borderRadius: 10,
-  width: 200,
-};
