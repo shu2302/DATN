@@ -2,26 +2,32 @@ import { useEffect, useState, useRef } from "react";
 import API from "../services/api";
 
 const fmt = n => new Intl.NumberFormat("vi-VN").format(Math.round(n)) + "đ";
-const toInput = d => d?.toISOString?.().slice(0,10) ?? "";
 
 function ProductSearch({ allProducts, selectedId, onSelect }) {
-  const [query, setQuery] = useState(""); const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [open, setOpen]   = useState(false);
   const ref = useRef(null);
   const selected = allProducts.find(p => p.id === Number(selectedId));
+
   useEffect(() => {
     const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-  const filtered = allProducts.filter(p => p.quantity > 0)
-    .filter(p => !query || p.name.toLowerCase().includes(query.toLowerCase())).slice(0,10);
+
+  const filtered = allProducts
+    .filter(p => p.quantity > 0)
+    .filter(p => !query || p.name.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 10);
 
   return (
     <div ref={ref} style={{ position:"relative" }}>
       {selected && !open ? (
-        <div onClick={() => setOpen(true)} style={{ display:"flex", alignItems:"center",
-          justifyContent:"space-between", padding:"9px 12px", border:"1.5px solid #2563eb",
-          borderRadius:8, background:"#eff6ff", fontSize:13.5, cursor:"pointer" }}>
+        <div onClick={() => setOpen(true)} style={{
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          padding:"9px 12px", border:"1.5px solid #2563eb", borderRadius:8,
+          background:"#eff6ff", fontSize:13.5, cursor:"pointer"
+        }}>
           <span style={{ fontWeight:600, color:"#1e40af" }}>{selected.name}</span>
           <span style={{ display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ fontSize:12, color:"#64748b" }}>còn {selected.quantity}</span>
@@ -37,15 +43,17 @@ function ProductSearch({ allProducts, selectedId, onSelect }) {
           style={{ width:"100%" }} />
       )}
       {open && (
-        <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:999,
+        <div style={{
+          position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:999,
           background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:10,
-          boxShadow:"0 8px 24px rgba(0,0,0,.12)", maxHeight:250, overflowY:"auto" }}>
+          boxShadow:"0 8px 24px rgba(0,0,0,.12)", maxHeight:250, overflowY:"auto"
+        }}>
           {filtered.length === 0
             ? <div style={{ padding:"12px 16px", color:"#94a3b8", fontSize:13 }}>Không tìm thấy</div>
             : filtered.map(p => (
               <div key={p.id} onClick={() => { onSelect(p.id); setQuery(""); setOpen(false); }}
-                style={{ padding:"10px 16px", cursor:"pointer", fontSize:13.5, display:"flex",
-                  justifyContent:"space-between", borderBottom:"1px solid #f1f5f9" }}
+                style={{ padding:"10px 16px", cursor:"pointer", fontSize:13.5,
+                  display:"flex", justifyContent:"space-between", borderBottom:"1px solid #f1f5f9" }}
                 onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
                 onMouseLeave={e => e.currentTarget.style.background="transparent"}>
                 <span style={{ fontWeight:500 }}>{p.name}</span>
@@ -59,16 +67,17 @@ function ProductSearch({ allProducts, selectedId, onSelect }) {
 }
 
 export default function Orders() {
-  const [orders, setOrders] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [modal, setModal] = useState(false);
-  const [detail, setDetail] = useState(null);
-  const [items, setItems] = useState([{ product_id:"", quantity:1 }]);
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  // Bộ lọc ngày
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [orders, setOrders]           = useState([]);
+  const [products, setProducts]       = useState([]);
+  const [modal, setModal]             = useState(false);
+  const [detail, setDetail]           = useState(null);
+  const [items, setItems]             = useState([{ product_id:"", quantity:1 }]);
+  const [saving, setSaving]           = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [startDate, setStartDate]     = useState("");
+  const [endDate, setEndDate]         = useState("");
+  const [comboDiscount, setComboDiscount] = useState(null);   // ← NEW: combo check result
+  const comboTimer = useRef(null);
 
   const loadOrders = async () => {
     const params = {};
@@ -77,21 +86,39 @@ export default function Orders() {
     const res = await API.get("/orders/", { params });
     setOrders(res.data);
   };
-  const loadProducts = () => API.get("/products/").then(r => setProducts(r.data));
 
   useEffect(() => {
-    Promise.all([loadOrders(), loadProducts()]).finally(() => setLoading(false));
+    Promise.all([loadOrders(), API.get("/products/").then(r => setProducts(r.data))])
+      .finally(() => setLoading(false));
   }, []);
 
-  const openModal = () => { setItems([{ product_id:"", quantity:1 }]); setModal(true); };
+  // Check combo discount whenever items change (debounced 600ms)
+  useEffect(() => {
+    clearTimeout(comboTimer.current);
+    const validIds = items.map(i => i.product_id).filter(id => id !== "").map(Number);
+    if (validIds.length < 2) { setComboDiscount(null); return; }
+    comboTimer.current = setTimeout(async () => {
+      try {
+        const res = await API.post("/combos/check-discount", { product_ids: validIds });
+        if (res.data.has_discount) setComboDiscount(res.data);
+        else setComboDiscount(null);
+      } catch { setComboDiscount(null); }
+    }, 600);
+  }, [items]);
+
+  const openModal = () => { setItems([{ product_id:"", quantity:1 }]); setComboDiscount(null); setModal(true); };
   const addItem    = () => setItems(p => [...p, { product_id:"", quantity:1 }]);
   const removeItem = i => setItems(p => p.filter((_,idx) => idx !== i));
   const setProductId = (i, v) => setItems(p => p.map((it,idx) => idx===i ? {...it,product_id:v} : it));
   const setQty = (i, v) => setItems(p => p.map((it,idx) => idx===i ? {...it,quantity:v} : it));
+
   const calcTotal = () => items.reduce((s,it) => {
     const p = products.find(pr => pr.id === Number(it.product_id));
     return s + (p ? p.price * Number(it.quantity) : 0);
   }, 0);
+
+  const totalSaved = comboDiscount?.total_saved || 0;
+  const finalTotal = Math.max(0, calcTotal() - totalSaved);
 
   const createOrder = async () => {
     const valid = items.filter(i => i.product_id && Number(i.quantity) > 0);
@@ -101,8 +128,8 @@ export default function Orders() {
     setSaving(true);
     try {
       await API.post("/orders/", { items: valid.map(i => ({ product_id: Number(i.product_id), quantity: Number(i.quantity) })) });
-      setModal(false);
-      await Promise.all([loadOrders(), loadProducts()]);
+      setModal(false); setComboDiscount(null);
+      await Promise.all([loadOrders(), API.get("/products/").then(r => setProducts(r.data))]);
     } catch (err) { alert(err.response?.data?.detail || "Lỗi tạo đơn hàng"); }
     finally { setSaving(false); }
   };
@@ -112,10 +139,11 @@ export default function Orders() {
     setDetail(res.data);
   };
 
-  const setPreset = (days) => {
+  const setPreset = days => {
     const end = new Date(); const start = new Date();
     start.setDate(end.getDate() - days);
-    setStartDate(toInput(start)); setEndDate(toInput(end));
+    setStartDate(start.toISOString().slice(0,10));
+    setEndDate(end.toISOString().slice(0,10));
   };
 
   if (loading) return <div className="loading">⏳ Đang tải...</div>;
@@ -125,13 +153,14 @@ export default function Orders() {
       <div className="page-header flex-between">
         <div><h2>🧾 Đơn hàng</h2><p>Quản lý và theo dõi đơn hàng</p></div>
         <div className="flex gap-2">
-          <a href={`http://127.0.0.1:8000/orders/export-csv${startDate||endDate?`?${new URLSearchParams({...(startDate&&{start_date:startDate}),...( endDate&&{end_date:endDate})})}`:"" }`}
-            target="_blank" className="btn btn-outline btn-sm">📥 Export CSV</a>
+          <a href={`http://127.0.0.1:8000/orders/export-csv${startDate||endDate
+            ? `?${new URLSearchParams({...(startDate&&{start_date:startDate}),...(endDate&&{end_date:endDate})})}`
+            : ""}`} target="_blank" className="btn btn-outline btn-sm">📥 Export CSV</a>
           <button className="btn btn-primary btn-sm" onClick={openModal}>+ Tạo đơn hàng</button>
         </div>
       </div>
 
-      {/* Bộ lọc ngày */}
+      {/* Date filter */}
       <div className="table-wrap" style={{ marginBottom:16 }}>
         <div className="table-header" style={{ flexWrap:"wrap", gap:10 }}>
           <div className="flex gap-2" style={{ alignItems:"center", flexWrap:"wrap" }}>
@@ -147,15 +176,17 @@ export default function Orders() {
           <div className="flex gap-2">
             {[["Hôm nay",0],["7 ngày",7],["30 ngày",30]].map(([label,days]) => (
               <button key={label} className="btn btn-outline btn-sm"
-                onClick={() => { if(days===0){const t=toInput(new Date());setStartDate(t);setEndDate(t);}else setPreset(days); setTimeout(loadOrders,50); }}>
-                {label}
-              </button>
+                onClick={() => {
+                  if (days===0) { const t=new Date().toISOString().slice(0,10); setStartDate(t); setEndDate(t); }
+                  else setPreset(days);
+                  setTimeout(loadOrders,50);
+                }}>{label}</button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Bảng đơn hàng */}
+      {/* Order list */}
       <div className="table-wrap">
         <div className="table-header">
           <span className="fw-600">Tổng: {orders.length} đơn</span>
@@ -178,7 +209,7 @@ export default function Orders() {
         </table>
       </div>
 
-      {/* Modal tạo đơn */}
+      {/* Create order modal */}
       {modal && (
         <div className="modal-overlay" onClick={e => e.target===e.currentTarget && setModal(false)}>
           <div className="modal" style={{ maxWidth:580 }}>
@@ -189,8 +220,9 @@ export default function Orders() {
             <div className="modal-body">
               <div style={{ marginBottom:12, padding:"8px 12px", background:"#f0f9ff",
                 border:"1px solid #bae6fd", borderRadius:8, fontSize:12.5, color:"#0369a1" }}>
-                💡 Gõ tên để tìm sản phẩm nhanh
+                💡 Gõ tên để tìm sản phẩm nhanh · Hệ thống tự kiểm tra combo giảm giá
               </div>
+
               {items.map((item, i) => {
                 const sp = products.find(p => p.id === Number(item.product_id));
                 return (
@@ -211,11 +243,37 @@ export default function Orders() {
                   </div>
                 );
               })}
-              <button className="btn btn-outline btn-sm" onClick={addItem} style={{ marginBottom:16 }}>+ Thêm sản phẩm khác</button>
+              <button className="btn btn-outline btn-sm" onClick={addItem} style={{ marginBottom:16 }}>
+                + Thêm sản phẩm khác
+              </button>
+
+              {/* Combo discount banner */}
+              {comboDiscount && comboDiscount.matched_combos.length > 0 && (
+                <div style={{ marginBottom:16, padding:"12px 16px", background:"#f0fdf4",
+                  border:"1.5px solid #86efac", borderRadius:10 }}>
+                  <div className="fw-700" style={{ color:"#15803d", marginBottom:6, fontSize:13.5 }}>
+                    🎁 Áp dụng {comboDiscount.matched_combos.length} combo giảm giá!
+                  </div>
+                  {comboDiscount.matched_combos.map((c, i) => (
+                    <div key={i} style={{ display:"flex", justifyContent:"space-between",
+                      fontSize:13, marginBottom:4, color:"#166534" }}>
+                      <span>{c.combo_name} (-{c.discount_pct}%)</span>
+                      <span className="fw-700">Tiết kiệm {fmt(c.saved)}</span>
+                    </div>
+                  ))}
+                  <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #bbf7d0",
+                    display:"flex", justifyContent:"space-between", fontWeight:700, color:"#15803d" }}>
+                    <span>Tổng tiết kiệm</span>
+                    <span style={{ fontSize:16 }}>{fmt(totalSaved)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Order summary */}
               {items.some(i => i.product_id) && (
                 <div style={{ background:"#f8fafc", borderRadius:10, padding:"14px 16px", border:"1px solid #e2e8f0" }}>
                   <div className="fw-600 mb-4" style={{ fontSize:13 }}>📋 Tóm tắt:</div>
-                  {items.filter(i => i.product_id).map((item,i) => {
+                  {items.filter(i => i.product_id).map((item, i) => {
                     const p = products.find(pr => pr.id===Number(item.product_id));
                     return p ? (
                       <div key={i} style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:6, color:"#475569" }}>
@@ -224,9 +282,17 @@ export default function Orders() {
                       </div>
                     ) : null;
                   })}
-                  <div style={{ display:"flex", justifyContent:"space-between", borderTop:"1px solid #e2e8f0", paddingTop:10, marginTop:6, fontWeight:700, fontSize:15 }}>
-                    <span>Tổng cộng</span>
-                    <span className="text-success">{fmt(calcTotal())}</span>
+                  {totalSaved > 0 && (
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:13,
+                      marginBottom:6, color:"#15803d", fontWeight:600 }}>
+                      <span>🎁 Giảm giá combo</span>
+                      <span>-{fmt(totalSaved)}</span>
+                    </div>
+                  )}
+                  <div style={{ display:"flex", justifyContent:"space-between",
+                    borderTop:"1px solid #e2e8f0", paddingTop:10, marginTop:6, fontWeight:700, fontSize:15 }}>
+                    <span>Tổng thanh toán</span>
+                    <span className="text-success">{fmt(finalTotal)}</span>
                   </div>
                 </div>
               )}
@@ -241,7 +307,7 @@ export default function Orders() {
         </div>
       )}
 
-      {/* Modal chi tiết */}
+      {/* Detail modal */}
       {detail && (
         <div className="modal-overlay" onClick={() => setDetail(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -262,10 +328,13 @@ export default function Orders() {
                   ))}
                 </tbody>
               </table>
-              <div style={{ display:"flex", justifyContent:"space-between", fontWeight:700, marginTop:14, paddingTop:12, borderTop:"1px solid #e2e8f0", fontSize:15 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", fontWeight:700,
+                marginTop:14, paddingTop:12, borderTop:"1px solid #e2e8f0", fontSize:15 }}>
                 <span>Tổng cộng</span><span className="text-success">{fmt(detail.total_price)}</span>
               </div>
-              <div className="text-muted mt-3" style={{ fontSize:12 }}>Ngày: {new Date(detail.created_at).toLocaleString("vi-VN")}</div>
+              <div className="text-muted mt-3" style={{ fontSize:12 }}>
+                Ngày: {new Date(detail.created_at).toLocaleString("vi-VN")}
+              </div>
             </div>
           </div>
         </div>

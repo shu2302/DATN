@@ -7,6 +7,7 @@ import Products from "./pages/Products";
 import Categories from "./pages/Categories";
 import Orders from "./pages/Orders";
 import StockImport from "./pages/StockImport";
+import Combos from "./pages/Combos";
 import Users from "./pages/Users";
 import Chatbot from "./pages/Chatbot";
 import Notifications from "./pages/Notifications";
@@ -24,14 +25,15 @@ export default function App() {
       <Route path="/login" element={token ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<Dashboard />} />
-        <Route path="products" element={<Products />} />
-        <Route path="categories" element={<Categories />} />
-        <Route path="orders" element={<Orders />} />
-        <Route path="stock-import" element={<StockImport />} />
-        <Route path="users" element={<Users />} />
-        <Route path="chatbot" element={<Chatbot />} />
+        <Route path="products"      element={<Products />} />
+        <Route path="categories"    element={<Categories />} />
+        <Route path="orders"        element={<Orders />} />
+        <Route path="stock-import"  element={<StockImport />} />
+        <Route path="combos"        element={<Combos />} />
+        <Route path="users"         element={<Users />} />
+        <Route path="chatbot"       element={<Chatbot />} />
         <Route path="notifications" element={<Notifications />} />
-        <Route path="profile" element={<Profile />} />
+        <Route path="profile"       element={<Profile />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
