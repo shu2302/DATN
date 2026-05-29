@@ -1,4 +1,3 @@
-# Intent layer — định nghĩa tất cả intent và schema phân loại
 from __future__ import annotations
 from enum import Enum
 from dataclasses import dataclass, field
@@ -17,8 +16,8 @@ class Intent(str, Enum):
     DB_PRODUCT_INFO   = "DB_PRODUCT_INFO"
     DB_CATEGORY       = "DB_CATEGORY"
     DB_USERS          = "DB_USERS"
-    DB_USER_ANALYTICS = "DB_USER_ANALYTICS"   # user mua gì, doanh thu theo user
-    DB_PRODUCT_BY_DAY = "DB_PRODUCT_BY_DAY"   # sản phẩm bán theo ngày
+    DB_USER_ANALYTICS = "DB_USER_ANALYTICS"
+    DB_PRODUCT_BY_DAY = "DB_PRODUCT_BY_DAY"
     # ── Non-database intents ──────────────────────────────────
     GENERAL           = "GENERAL"
 
@@ -57,7 +56,6 @@ KEYWORD_MAP: list[tuple[list[str], Intent]] = [
 
 @dataclass
 class ParsedQuery:
-    """Kết quả phân tích câu hỏi: nhiều intent + date range"""
     intents:    list[Intent]
     start_date: Optional[date] = None
     end_date:   Optional[date] = None

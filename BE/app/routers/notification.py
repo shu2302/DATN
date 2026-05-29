@@ -1,6 +1,3 @@
-"""
-notification.py — Smart notifications + AI stock prediction + Agentic auto-import
-"""
 from __future__ import annotations
 
 import json
@@ -29,7 +26,6 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 # HELPER — tính tốc độ bán (units/ngày) trong 7 ngày qua
 
 def _compute_sell_rates(db: Session) -> dict[int, float]:
-    """Trả về {product_id: avg_units_per_day} trong 7 ngày gần nhất."""
     cutoff = (date.today() - timedelta(days=7)).isoformat()
     rows = (
         db.query(
@@ -45,27 +41,19 @@ def _compute_sell_rates(db: Session) -> dict[int, float]:
 
 
 def _days_until_stockout(quantity: int, rate: float) -> Optional[int]:
-    """Số ngày dự kiến còn hàng. None nếu rate=0."""
     if rate <= 0:
         return None
     return int(quantity / rate)
 
 
 
-# ENDPOINT 1 — Thông báo tồn kho (Staff + Admin xem)
+# ENDPOINT 1 — Thông báo tồn kho
 
 @router.get("/")
 def get_notifications(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    Trả về 4 loại cảnh báo:
-    - out_of_stock:  hết hàng hoàn toàn
-    - low_stock:     dưới ngưỡng threshold
-    - predicted_out: AI dự đoán sắp hết dựa trên tốc độ bán
-    - slow_moving:   tồn nhiều nhưng bán quá chậm
-    """
     sell_rates = _compute_sell_rates(db)
     notifications = []
     products = db.query(Product).all()
@@ -74,7 +62,6 @@ def get_notifications(
         rate = sell_rates.get(p.id, 0.0)
         days_left = _days_until_stockout(p.quantity, rate)
 
-        # 1. Hết hàng
         if p.quantity == 0:
             notifications.append({
                 "type": "out_of_stock", "level": "danger",
@@ -83,7 +70,6 @@ def get_notifications(
                 "current_qty": 0, "sell_rate": rate,
             })
 
-        # 2. Dưới ngưỡng threshold
         elif p.quantity <= p.low_stock_threshold:
             notifications.append({
                 "type": "low_stock", "level": "warning",
@@ -93,7 +79,6 @@ def get_notifications(
                 "days_left": days_left,
             })
 
-        # 3. AI dự đoán: còn hàng nhưng sẽ hết trong 3 ngày tới (dựa trên tốc độ bán)
         elif days_left is not None and days_left <= 3 and rate > 0:
             notifications.append({
                 "type": "predicted_out", "level": "warning",
@@ -106,7 +91,6 @@ def get_notifications(
                 "days_left": days_left,
             })
 
-        # 4. Tồn chậm
         if p.quantity > 50 and sell_rates.get(p.id, 0) == 0:
             notifications.append({
                 "type": "slow_moving", "level": "info",
@@ -119,24 +103,16 @@ def get_notifications(
 
 
 
-# ENDPOINT 2 — AI Agent: Dự đoán lượng cần nhập (Admin only)
+# ENDPOINT 2 — AI Agent: Dự đoán lượng cần nhập
 
 @router.get("/ai-import-suggestions")
 def get_import_suggestions(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """
-    Agentic AI tự tính toán:
-    - Sản phẩm nào cần nhập (hết/sắp hết/dự đoán hết)
-    - Số lượng nên nhập = đủ bán cho 14 ngày tới
-    - Giá nhập gợi ý = giá nhập trung bình lần trước (nếu có)
-    Admin chỉ cần review và bấm Xác nhận.
-    """
     sell_rates = _compute_sell_rates(db)
     products   = db.query(Product).all()
 
-    # Lấy giá nhập trung bình gần nhất cho từng sản phẩm
     last_prices = {}
     for p in products:
         last = (
@@ -165,7 +141,6 @@ def get_import_suggestions(
             reason = f"AI dự đoán hết hàng trong {days_left} ngày"
 
         if needs_import:
-            # Số lượng nên nhập = đủ bán 14 ngày tới (tối thiểu 10)
             target_qty  = max(10, int(rate * 14) + p.low_stock_threshold - p.quantity)
             import_price = last_prices.get(p.id, round(p.price * 0.65, 0))
 
@@ -210,10 +185,6 @@ def confirm_auto_import(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """
-    Admin xác nhận danh sách nhập hàng do AI gợi ý.
-    Tự động tạo phiếu nhập + cập nhật tồn kho + ghi log.
-    """
     if not req.items:
         raise HTTPException(status_code=400, detail="Danh sách nhập rỗng")
 
@@ -276,21 +247,16 @@ def confirm_auto_import(
 
 
 
-# ENDPOINT 4 — AI Report Summary (Admin only)
+# ENDPOINT 4 — AI Report Summary
 
 @router.get("/ai-report-summary")
 async def get_ai_report_summary(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """
-    AI tự động tóm tắt tình hình kinh doanh tuần này.
-    Dùng Ollama LLM. Fallback về structured text nếu offline.
-    """
     today  = date.today()
     week_start = today - timedelta(days=7)
 
-    # Thu thập dữ liệu tuần này
     rev_q = (
         db.query(func.sum(Order.total_price), func.count(Order.id))
         .filter(func.date(Order.created_at) >= week_start.isoformat())
@@ -299,7 +265,6 @@ async def get_ai_report_summary(
     revenue_week = float(rev_q[0] or 0)
     orders_week  = int(rev_q[1] or 0)
 
-    # Tuần trước để so sánh
     prev_start = today - timedelta(days=14)
     rev_prev = db.query(func.sum(Order.total_price)).filter(
         and_(
@@ -312,7 +277,6 @@ async def get_ai_report_summary(
         if rev_prev > 0 else 0
     )
 
-    # Top 3 sản phẩm
     top3 = (
         db.query(Product.name, func.sum(OrderItem.quantity).label("sold"))
         .join(OrderItem, Product.id == OrderItem.product_id)
@@ -323,7 +287,6 @@ async def get_ai_report_summary(
         .limit(3).all()
     )
 
-    # Sản phẩm cần nhập
     sell_rates  = _compute_sell_rates(db)
     need_import = [
         p.name for p in db.query(Product).all()
@@ -369,7 +332,6 @@ Giữ trong 150-200 từ."""
     except httpx.ConnectError:
         pass
 
-    # Fallback: format thủ công
     change_sign = "+" if revenue_change_pct >= 0 else ""
     top_str = ", ".join([f"{r['name']} ({r['sold']} cái)" for r in data["top_products"]])
     import_str = ", ".join(need_import[:3]) if need_import else "Không có"

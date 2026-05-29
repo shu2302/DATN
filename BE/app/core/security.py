@@ -25,7 +25,6 @@ def create_access_token(data: dict) -> str:
 
 
 def get_current_user(token: str = Header(...)):
-    """Giải mã token, trả về dict {user_id, username, role}"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return {

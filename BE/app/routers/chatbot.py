@@ -1,7 +1,3 @@
-"""
-chatbot.py — Router (thin layer, chỉ orchestrate các service)
-Architecture: Intent → Cache → Repo → RAG → LLM
-"""
 from __future__ import annotations
 
 from typing import Optional
@@ -20,7 +16,7 @@ router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 
 # ── Schemas ───────────────────────────────────────────────────
 class ChatMessage(BaseModel):
-    role:    str   # "user" | "assistant"
+    role:    str
     content: str
 
 
@@ -42,14 +38,11 @@ async def chat(
 
     history = [h.model_dump() for h in req.history]
 
-    # 1. Parse query → intents + date range
     history_ctx = build_history_ctx(history)
     pq = await parse_query(message, history_ctx)
 
-    # 2. Execute (cache → DB) cho tất cả intent
     merged = execute_multi_intent(pq, db)
 
-    # 3. Pre-validate — trả lời sớm nếu không có data
     early = pre_validate(merged)
     if early:
         return {
@@ -59,7 +52,6 @@ async def chat(
             "has_db_data": False,
         }
 
-    # 4. LLM synthesize (hoặc fallback formatter)
     answer = await synthesize(message, merged, history)
 
     return {
@@ -77,7 +69,6 @@ def rebuild_rag_index(
     current_user = Depends(get_current_user),
     db: Session  = Depends(get_db),
 ):
-    """Rebuild FAISS semantic index. Gọi sau khi import sản phẩm lớn."""
     from app.models.product import Product
     from app.models.category import Category
     from app.chatbot.rag import rebuild_index

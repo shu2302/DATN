@@ -1,6 +1,3 @@
-"""
-Intent Classifier — Multi-intent, keyword-first, LLM fallback
-"""
 from __future__ import annotations
 
 import re
@@ -19,10 +16,6 @@ OLLAMA_MODEL = "llama3.1:8b"
 # DATE PARSER
 # ──────────────────────────────────────────────────────────────────
 def parse_date_range(msg: str) -> tuple[Optional[date], Optional[date], str]:
-    """
-    Trả về (start, end, label).
-    Hiểu tiếng Việt: hôm nay, hôm qua, tuần này, tháng 4, ngày 20/4, ...
-    """
     s = msg.lower()
     today = date.today()
 
@@ -94,10 +87,6 @@ def parse_date_range(msg: str) -> tuple[Optional[date], Optional[date], str]:
 # MULTI-INTENT CLASSIFIER
 # ──────────────────────────────────────────────────────────────────
 def classify_multi_intent_fast(message: str) -> list[Intent]:
-    """
-    Keyword-based, O(n).
-    Một câu có thể match nhiều intent cùng lúc.
-    """
     msg = message.lower()
     found: list[Intent] = []
     for keywords, intent in KEYWORD_MAP:
@@ -108,9 +97,6 @@ def classify_multi_intent_fast(message: str) -> list[Intent]:
 
 
 async def classify_multi_intent_llm(message: str, history_ctx: str) -> list[Intent]:
-    """
-    LLM fallback — cho phép trả về nhiều nhãn cách nhau bằng dấu phẩy.
-    """
     labels_str = "\n".join(
         [f"  {i.value}: {d}" for i, d in INTENT_DESCRIPTIONS.items()]
     )
@@ -145,15 +131,10 @@ async def classify_multi_intent_llm(message: str, history_ctx: str) -> list[Inte
 
 
 async def parse_query(message: str, history_ctx: str = "") -> ParsedQuery:
-    """
-    Phân tích câu hỏi → ParsedQuery (intents + date range).
-    """
     sd, ed, label = parse_date_range(message)
 
-    # Bước 1: keyword-first (nhanh, không cần LLM)
     intents = classify_multi_intent_fast(message)
 
-    # Bước 2: LLM nếu không match được gì
     if not intents:
         intents = await classify_multi_intent_llm(message, history_ctx)
 

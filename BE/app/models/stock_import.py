@@ -5,7 +5,6 @@ from app.database.database import Base
 
 
 class StockImport(Base):
-    """Phiếu nhập hàng — mỗi lần admin nhập thêm hàng vào kho"""
     __tablename__ = "stock_imports"
 
     id = Column(Integer, primary_key=True, index=True)

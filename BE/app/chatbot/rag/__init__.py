@@ -1,7 +1,3 @@
-"""
-RAG layer — FAISS semantic search cho product/category names.
-Graceful fallback: nếu faiss/sentence-transformers chưa cài → skip.
-"""
 from __future__ import annotations
 
 import logging
@@ -22,10 +18,6 @@ except ImportError:
 
 
 class SemanticIndex:
-    """
-    Index tên sản phẩm + danh mục để tìm kiếm ngữ nghĩa.
-    Singleton per process.
-    """
 
     def __init__(self) -> None:
         self._ready    = False
@@ -34,7 +26,6 @@ class SemanticIndex:
         self._index    = None
 
     def build(self, names: list[str]) -> None:
-        """Xây dựng FAISS index từ danh sách tên."""
         if not _FAISS_AVAILABLE or not names:
             return
         try:
@@ -52,10 +43,7 @@ class SemanticIndex:
             self._ready = False
 
     def search(self, query: str, top_k: int = 5, threshold: float = 0.45) -> list[str]:
-        """
-        Trả về tên sản phẩm/danh mục ngữ nghĩa tương tự query.
-        threshold: cosine similarity tối thiểu (0–1).
-        """
+
         if not self._ready or self._model is None or self._index is None:
             return []
         try:
@@ -75,7 +63,6 @@ class SemanticIndex:
         return self._ready
 
 
-# Singleton — dùng chung trong toàn app
 _global_index: Optional[SemanticIndex] = None
 
 
@@ -87,9 +74,7 @@ def get_index() -> SemanticIndex:
 
 
 def rebuild_index(product_names: list[str], category_names: list[str]) -> None:
-    """
-    Gọi khi khởi động app hoặc sau khi thêm/xóa sản phẩm.
-    """
+
     idx   = get_index()
     names = list(set(product_names + category_names))
     idx.build(names)

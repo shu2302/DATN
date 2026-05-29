@@ -1,7 +1,3 @@
-"""
-Service layer — điều phối toàn bộ pipeline:
-  ParsedQuery → Cache? → DB Repo → RAG → LLM → Response
-"""
 from __future__ import annotations
 
 import json, logging
@@ -23,7 +19,7 @@ OLLAMA_TIMEOUT = 90.0
 
 
 # ══════════════════════════════════════════════════════════════
-# STRICT SYSTEM PROMPT — chống bịa tuyệt đối
+# STRICT SYSTEM PROMPT
 # ══════════════════════════════════════════════════════════════
 _SYSTEM = """Bạn là trợ lý AI của hệ thống quản lý siêu thị.
 
@@ -44,11 +40,6 @@ _SYSTEM = """Bạn là trợ lý AI của hệ thống quản lý siêu thị.
 # SINGLE INTENT → DB DATA
 # ══════════════════════════════════════════════════════════════
 def _fetch_one(intent: Intent, pq: ParsedQuery, db: Session) -> dict[str, Any]:
-    """
-    Lấy data cho một intent (check cache trước, query DB nếu miss).
-    Trả về {"has_data", "empty_reason", "data", ...}
-    """
-    # ── Cache check ──────────────────────────────────────────
     cached = cache_get(intent.value, pq.period_label)
     if cached is not None:
         logger.debug(f"Cache HIT: {intent.value} / {pq.period_label}")
@@ -56,10 +47,8 @@ def _fetch_one(intent: Intent, pq: ParsedQuery, db: Session) -> dict[str, Any]:
 
     sd, ed = pq.start_date, pq.end_date
 
-    # ── RAG: semantic search cho query mơ hồ ─────────────────
     sem_names = semantic_search(pq.raw_message, top_k=5)
 
-    # ── Query DB ─────────────────────────────────────────────
     data: dict[str, Any]
     empty_reason = ""
 
@@ -120,7 +109,6 @@ def _fetch_one(intent: Intent, pq: ParsedQuery, db: Session) -> dict[str, Any]:
         "data":         data,
     }
 
-    # Cache nếu có data
     if result["has_data"]:
         cache_set(intent.value, pq.period_label, result)
 
@@ -131,9 +119,6 @@ def _fetch_one(intent: Intent, pq: ParsedQuery, db: Session) -> dict[str, Any]:
 # MULTI-INTENT EXECUTOR
 # ══════════════════════════════════════════════════════════════
 def execute_multi_intent(pq: ParsedQuery, db: Session) -> dict[str, Any]:
-    """
-    Chạy tất cả intent trong pq.intents, merge kết quả.
-    """
     if Intent.GENERAL in pq.intents:
         return {
             "intents":    [Intent.GENERAL.value],
@@ -161,10 +146,6 @@ def execute_multi_intent(pq: ParsedQuery, db: Session) -> dict[str, Any]:
 # PRE-VALIDATE  (chặn LLM khi không có data)
 # ══════════════════════════════════════════════════════════════
 def pre_validate(merged: dict) -> str | None:
-    """
-    Trả về câu trả lời sớm (không qua LLM) nếu không có data.
-    None = cho qua LLM bình thường.
-    """
     if Intent.GENERAL.value in merged.get("intents", []):
         return None  # GENERAL → LLM trả lời tự do
 
@@ -186,7 +167,6 @@ def pre_validate(merged: dict) -> str | None:
 # FALLBACK FORMATTER  (không qua LLM)
 # ══════════════════════════════════════════════════════════════
 def _fmt_one(result: dict) -> str:
-    """Format một intent result → string dễ đọc."""
     if not result.get("has_data"):
         return f"❌ {result.get('empty_reason', 'Không có dữ liệu.')}"
 
@@ -280,10 +260,7 @@ async def synthesize(
     merged:    dict,
     history:   list[dict],
 ) -> str:
-    """
-    Gọi Ollama với data thực. temperature=0.05 để giảm hallucination.
-    """
-    # Build data block — chỉ lấy phần có data
+
     data_blocks: list[str] = []
     for r in merged.get("all_results", []):
         if r.get("has_data"):
@@ -293,7 +270,6 @@ async def synthesize(
 
     data_str = "\n\n".join(data_blocks) if data_blocks else "(trống)"
 
-    # Build history block
     hist_lines: list[str] = []
     for h in history[-6:]:
         role = "Người dùng" if h["role"] == "user" else "Trợ lý"
@@ -330,5 +306,4 @@ async def synthesize(
     except Exception as e:
         logger.warning(f"LLM error: {e}")
 
-    # LLM không khả dụng → fallback formatter
     return format_fallback(merged)

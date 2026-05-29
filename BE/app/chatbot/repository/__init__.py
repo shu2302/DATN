@@ -1,7 +1,3 @@
-"""
-Repository layer — tất cả SQLAlchemy queries.
-Không chứa business logic, chỉ truy vấn thuần túy.
-"""
 from __future__ import annotations
 
 from datetime import date
@@ -230,13 +226,9 @@ def get_imports(db: Session, sd: Optional[date], ed: Optional[date]) -> dict[str
 # PRODUCT INFO  (semantic-aware: exact match > partial > all)
 # ══════════════════════════════════════════════════════════════
 def get_product_info(db: Session, message: str, semantic_names: list[str] | None = None) -> dict[str, Any]:
-    """
-    semantic_names: tên SP từ RAG layer (nếu có).
-    """
     msg_lower = message.lower()
     all_prods = db.query(Product).all()
 
-    # Ưu tiên 1: semantic names từ RAG
     if semantic_names:
         matched = [p for p in all_prods
                    if any(sn.lower() in p.name.lower() or p.name.lower() in sn.lower()
@@ -244,18 +236,15 @@ def get_product_info(db: Session, message: str, semantic_names: list[str] | None
     else:
         matched = []
 
-    # Ưu tiên 2: exact substring match
     if not matched:
         matched = [p for p in all_prods if p.name.lower() in msg_lower]
 
-    # Ưu tiên 3: word-level partial match (từ >= 3 ký tự)
     if not matched:
         matched = [
             p for p in all_prods
             if any(w in msg_lower for w in p.name.lower().split() if len(w) >= 3)
         ]
 
-    # Fallback: trả tất cả (giới hạn 20)
     show_all = not matched
     if show_all:
         matched = all_prods[:20]
@@ -378,14 +367,10 @@ def get_product_by_day(
     message: str,
     semantic_names: list[str] | None = None,
 ) -> dict[str, Any]:
-    """
-    Thống kê số lượng + doanh thu theo ngày cho từng sản phẩm.
-    Nếu câu hỏi đề cập tên SP cụ thể → lọc theo SP đó.
-    """
+
     msg_lower = message.lower()
     all_prods = db.query(Product).all()
 
-    # Xác định sản phẩm cần lọc
     if semantic_names:
         target = [p for p in all_prods
                   if any(sn.lower() in p.name.lower() for sn in semantic_names)]

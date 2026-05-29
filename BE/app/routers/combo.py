@@ -1,6 +1,3 @@
-"""
-combo.py — Product Combo: AI gợi ý + CRUD + áp dụng giảm giá khi tạo đơn hàng
-"""
 from __future__ import annotations
 
 from typing import Optional
@@ -25,8 +22,8 @@ router = APIRouter(prefix="/combos", tags=["Combos"])
 # Schemas
 class ComboCreate(BaseModel):
     name:         str
-    discount_pct: float = 5.0          # % giảm giá khi mua combo
-    product_ids:  list[int]            # DS sản phẩm trong combo
+    discount_pct: float = 5.0
+    product_ids:  list[int]
 
 class ComboUpdate(BaseModel):
     name:         Optional[str]   = None
@@ -59,8 +56,7 @@ def _combo_resp(c: ProductCombo) -> dict:
     }
 
 
-# GET /combos/ — Tất cả combo (Staff + Admin xem)
-
+# GET /combos/ — Tất cả combo
 @router.get("/")
 def get_combos(
     current_user=Depends(get_current_user),
@@ -74,12 +70,11 @@ def get_all_combos(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Admin xem cả combo đang tắt."""
     combos = db.query(ProductCombo).all()
     return [_combo_resp(c) for c in combos]
 
 
-# POST /combos/ — Tạo combo thủ công (Admin)
+# POST /combos/ — Tạo combo thủ công
 
 @router.post("/")
 def create_combo(
@@ -170,11 +165,7 @@ async def ai_suggest_combos(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """
-    Association Rules: tìm sản phẩm nào thường được mua cùng nhau
-    → Dùng Ollama để đặt tên combo và giải thích gợi ý.
-    """
-    # Step 1: Lấy tất cả đơn hàng có >= 2 sản phẩm
+
     orders_with_items = (
         db.query(Order.id)
         .join(OrderItem, Order.id == OrderItem.order_id)
@@ -190,8 +181,6 @@ async def ai_suggest_combos(
             "message": "Chưa đủ dữ liệu để gợi ý combo (cần ít nhất 3 đơn hàng có nhiều sản phẩm)",
         }
 
-    # Step 2: Xây dựng co-occurrence matrix
-    # Đếm số lần 2 sản phẩm xuất hiện chung trong cùng đơn
     co_occur: dict[tuple, int] = {}
     product_names: dict[int, str] = {}
 
@@ -206,16 +195,13 @@ async def ai_suggest_combos(
         for i in items:
             product_names[i.product_id] = i.name
 
-        # Tạo tất cả cặp sản phẩm trong đơn
         for a in range(len(pids)):
             for b in range(a + 1, len(pids)):
                 pair = tuple(sorted([pids[a], pids[b]]))
                 co_occur[pair] = co_occur.get(pair, 0) + 1
 
-    # Step 3: Lấy top 5 cặp hay xuất hiện nhất
     top_pairs = sorted(co_occur.items(), key=lambda x: x[1], reverse=True)[:5]
 
-    # Step 4: Thêm nhóm 3 sản phẩm (nếu đủ dữ liệu)
     triple_occur: dict[tuple, int] = {}
     for oid in order_ids:
         items = db.query(OrderItem.product_id).filter(OrderItem.order_id == oid).all()
@@ -229,7 +215,6 @@ async def ai_suggest_combos(
 
     top_triples = sorted(triple_occur.items(), key=lambda x: x[1], reverse=True)[:3]
 
-    # Step 5: Format suggestions
     raw_suggestions = []
     for pair, count in top_pairs:
         names = [product_names.get(pid, f"SP#{pid}") for pid in pair]
@@ -259,7 +244,6 @@ async def ai_suggest_combos(
             "suggested_discount": 10.0 if count < 3 else 12.0,
         })
 
-    # Step 6: Dùng LLM đặt tên combo và mô tả gợi ý
     data_str = "\n".join([
         f"- {s['product_names']} (mua cùng {s['co_buy_count']} lần, tổng giá {s['total_price']:,.0f}đ)"
         for s in raw_suggestions
@@ -295,7 +279,6 @@ async def ai_suggest_combos(
     except Exception:
         pass
 
-    # Gắn tên vào suggestions
     for i, s in enumerate(raw_suggestions):
         if not combo_names[i]:
             combo_names[i] = " + ".join(s["product_names"][:2])
@@ -320,17 +303,13 @@ def check_combo_discount(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    FE gọi API này khi user đang chọn sản phẩm trong đơn hàng.
-    Trả về: combo nào đang áp dụng + số tiền tiết kiệm được.
-    """
+
     input_set   = set(req.product_ids)
     active_combos = db.query(ProductCombo).filter(ProductCombo.is_active == True).all()
 
     matched = []
     for combo in active_combos:
         combo_pids = {item.product_id for item in combo.items}
-        # Combo khớp nếu tất cả sản phẩm trong combo đều có trong đơn hàng
         if combo_pids.issubset(input_set):
             total_original   = sum(item.product.price for item in combo.items if item.product)
             total_discounted = round(total_original * (1 - combo.discount_pct / 100), 0)

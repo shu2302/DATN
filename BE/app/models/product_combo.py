@@ -5,7 +5,6 @@ from app.database.database import Base
 
 
 class ProductCombo(Base):
-    """Combo sản phẩm — mua cùng nhau được giảm giá"""
     __tablename__ = "product_combos"
 
     id           = Column(Integer, primary_key=True, index=True)
@@ -20,7 +19,6 @@ class ProductCombo(Base):
 
 
 class ProductComboItem(Base):
-    """Sản phẩm trong combo"""
     __tablename__ = "product_combo_items"
 
     id         = Column(Integer, primary_key=True, index=True)

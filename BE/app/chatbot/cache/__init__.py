@@ -1,7 +1,3 @@
-"""
-Cache layer — Redis với in-memory fallback khi Redis chưa chạy.
-Key format: chatbot:{intent}:{date_range}:{params_hash}
-"""
 from __future__ import annotations
 
 import hashlib, json, time, logging
@@ -11,9 +7,9 @@ logger = logging.getLogger(__name__)
 
 # ── TTL config (giây) ─────────────────────────────────────────
 TTL_MAP = {
-    "DB_REVENUE":        60,    # doanh thu — refresh mỗi 1 phút
-    "DB_ORDERS":         30,    # đơn hàng — thay đổi nhiều nhất
-    "DB_STOCK":          120,   # tồn kho
+    "DB_REVENUE":        60,
+    "DB_ORDERS":         30,
+    "DB_STOCK":          120,
     "DB_TOP_PRODUCTS":   120,
     "DB_SLOW_PRODUCTS":  300,
     "DB_IMPORT":         120,
@@ -101,7 +97,6 @@ def cache_set(intent: str, period_label: str, value: dict, extra: str = "") -> N
 
 
 def cache_invalidate(intent: str) -> None:
-    """Xóa cache khi data thay đổi (vd: sau khi tạo đơn)."""
     r = _get_redis()
     if r:
         try:
