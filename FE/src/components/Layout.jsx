@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 import API from "../services/api";
 
 const NAV = [
-  { to:"/",             label:"Dashboard",      icon:"📊", section:"Tổng quan" },
+  { to:"/",             label:"Tổng quan thống kê",      icon:"📊", section:"Tổng quan" },
   { to:"/products",     label:"Sản phẩm",       icon:"🛍️", section:"Quản lý" },
   { to:"/categories",   label:"Danh mục",       icon:"📂" },
-  { to:"/combos",       label:"Combo giảm giá", icon:"🎁" },
+  { to:"/combos",       label:"Gói giảm giá", icon:"🎁" },
   { to:"/orders",       label:"Đơn hàng",       icon:"🧾" },
   { to:"/stock-import", label:"Nhập hàng",      icon:"📥", adminOnly:true },
   { to:"/notifications",label:"Thông báo & AI", icon:"🔔", section:"AI Assistant" },
-  { to:"/chatbot",      label:"AI Chatbot",     icon:"🤖" },
+  { to:"/chatbot",      label:"Chatbot",     icon:"🤖" },
   { to:"/users",        label:"Người dùng",     icon:"👥", section:"Hệ thống", adminOnly:true },
   { to:"/profile",      label:"Hồ sơ",          icon:"👤" },
 ];

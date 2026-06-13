@@ -41,7 +41,7 @@ export default function Dashboard() {
   return (
     <div>
       <div className="page-header">
-        <h2>📊 Dashboard</h2>
+        <h2>📊 Tổng quan thống kê</h2>
         <p>Tổng quan hoạt động kinh doanh siêu thị</p>
       </div>
       <div className="stat-grid">

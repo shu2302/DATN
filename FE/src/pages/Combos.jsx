@@ -244,8 +244,8 @@ export default function Combos() {
     <div>
       <div className="page-header flex-between">
         <div>
-          <h2>🎁 Combo Sản phẩm</h2>
-          <p>Tạo combo giảm giá — mua nhiều tiết kiệm hơn</p>
+          <h2>🎁 Gói Sản phẩm</h2>
+          <p>Tạo gói giảm giá — mua nhiều tiết kiệm hơn</p>
         </div>
         {isAdmin && (
           <div className="flex gap-2">
@@ -253,7 +253,7 @@ export default function Combos() {
               onClick={() => setTab(t => t==="ai" ? "list" : "ai")}>
               🤖 AI Gợi ý
             </button>
-            <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Tạo combo</button>
+            <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Tạo gói</button>
           </div>
         )}
       </div>
@@ -265,12 +265,12 @@ export default function Combos() {
 
       {/* Active combos */}
       <h3 style={{ marginBottom:12, fontSize:14, fontWeight:700 }}>
-        🟢 Combo đang hoạt động ({activeCombos.length})
+        🟢 gói đang hoạt động ({activeCombos.length})
       </h3>
       {activeCombos.length === 0 ? (
         <div className="table-wrap" style={{ padding:"40px", textAlign:"center" }}>
           <div className="empty-icon">🎁</div>
-          <div>Chưa có combo nào. {isAdmin && "Nhấn '+ Tạo combo' hoặc dùng AI gợi ý!"}</div>
+          <div>Chưa có gói giảm giá nào. {isAdmin && "Nhấn '+ Tạo combo' hoặc dùng AI gợi ý!"}</div>
         </div>
       ) : (
         activeCombos.map(c => (
@@ -283,7 +283,7 @@ export default function Combos() {
       {isAdmin && inactiveCombos.length > 0 && (
         <>
           <h3 style={{ marginTop:24, marginBottom:12, fontSize:14, fontWeight:700, color:"#94a3b8" }}>
-            ⚫ Combo đã tắt ({inactiveCombos.length})
+            ⚫ gói giảm giá đã tắt ({inactiveCombos.length})
           </h3>
           {inactiveCombos.map(c => (
             <ComboCard key={c.id} combo={c} onEdit={openEdit}
@@ -325,7 +325,7 @@ export default function Combos() {
               </div>
 
               <div className="form-group">
-                <label>Chọn sản phẩm trong combo (tối thiểu 2) *</label>
+                <label>Chọn sản phẩm trong gói giảm giá (tối thiểu 2) *</label>
                 <ProductSearch products={products} selectedIds={form.product_ids} onToggle={toggleProduct} />
               </div>
 
@@ -335,7 +335,7 @@ export default function Combos() {
                     <input type="checkbox"
                       checked={form.is_active !== false}
                       onChange={e => setForm({...form, is_active:e.target.checked})} />
-                    Combo đang hoạt động
+                    Gói giảm giá đang hoạt động
                   </label>
                 </div>
               )}
